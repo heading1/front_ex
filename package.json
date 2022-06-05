@@ -1,0 +1,23 @@
+{
+  "name": "front_ex",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "serve -l 5000",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/heading1/front_ex.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/heading1/front_ex/issues"
+  },
+  "homepage": "https://github.com/heading1/front_ex#readme",
+  "dependencies": {
+    "serve": "^13.0.2"
+  }
+}
