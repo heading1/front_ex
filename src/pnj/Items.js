@@ -1,6 +1,6 @@
 import Component from './component.js';
 
-class Items extends Component {
+export default class Items extends Component {
   setup() {
     this.state = { items: ['item1', 'item2'] };
   }
@@ -9,18 +9,34 @@ class Items extends Component {
     const { items } = this.state;
     return `
       <ul>
-        ${items.map((item) => `<li>${item}</li>`).join('')}
+        ${items
+          .map(
+            (item, index) => `
+          <li>
+            ${item}
+            <button class='delBtn' data-index=${index}>삭제</button>
+          </li>
+        `
+          )
+          .join('')}
       </ul>
-      <button>추가</button>
+      <button class='addBtn'>추가</button>
     `;
   }
 
   setEvent() {
-    this.target.querySelector('button').addEventListener('click', () => {
-      const { items } = this.state;
-      this.setState({ items: [...items, `item${items.length + 1}`] });
+    /**
+     * bubbling을 활용한 깔끔한 event handling
+     */
+    this.target.addEventListener('click', ({ target }) => {
+      const items = [...this.state.items];
+
+      if (target.classList.contains('addBtn')) {
+        this.setState({ items: [...items, `item${items.length + 1}`] });
+      } else if (target.classList.contains('delBtn')) {
+        items.splice(target.dataset.index, 1);
+        this.setState({ items });
+      }
     });
   }
 }
-
-export default Items;
