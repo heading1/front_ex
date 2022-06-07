@@ -7,4 +7,4 @@ class App {
   }
 }
 
-console.log(new App());
+new App();

@@ -1,4 +1,4 @@
-class Component {
+export default class Component {
   target;
   state;
 
@@ -6,11 +6,11 @@ class Component {
     this.target = target;
     this.setup();
     this.render();
+    this.setEvent();
   }
 
   render() {
     this.target.innerHTML = this.template();
-    this.setEvent();
   }
 
   setState(newState) {
@@ -27,5 +27,3 @@ class Component {
 
   setEvent() {}
 }
-
-export default Component;
