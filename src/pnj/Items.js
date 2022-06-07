@@ -28,15 +28,16 @@ export default class Items extends Component {
     /**
      * bubbling을 활용한 깔끔한 event handling
      */
-    this.target.addEventListener('click', ({ target }) => {
-      const items = [...this.state.items];
 
-      if (target.classList.contains('addBtn')) {
-        this.setState({ items: [...items, `item${items.length + 1}`] });
-      } else if (target.classList.contains('delBtn')) {
-        items.splice(target.dataset.index, 1);
-        this.setState({ items });
-      }
+    this.addEvents('click', '.addBtn', () => {
+      const { items } = this.state;
+      this.setState({ items: [...items, `item${items.length + 1}`] });
+    });
+
+    this.addEvents('click', '.delBtn', ({ target }) => {
+      const { items } = this.state;
+      items.splice(target.dataset.index, 1);
+      this.setState({ items });
     });
   }
 }
