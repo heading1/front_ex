@@ -1,4 +1,5 @@
 import render from './render.js';
+import CounterApp from '../counter/CounterApp.js';
 
 let state = undefined;
 
@@ -14,7 +15,7 @@ export default function useState(initState) {
 
   function setFunction(changedState) {
     state = changedState;
-    render();
+    render('#app', CounterApp);
   }
 
   return [state, setFunction];
