@@ -44,6 +44,9 @@ export default class Component {
   }
 
   // 하위 3개 메소드는 커스텀 컴포넌트 사용 시 정의해서 사용
+  /**
+   * 초기 state를 저장하는 데 사용하는 메소드
+   */
   setup() {}
 
   /**
