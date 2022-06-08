@@ -1,5 +1,6 @@
 import Component from './component.js';
 
+// 더 이상 사용하지 않음
 export default class Items extends Component {
   setup() {
     this.state = { items: ['item1', 'item2'] };
@@ -28,13 +29,12 @@ export default class Items extends Component {
     /**
      * bubbling을 활용한 깔끔한 event handling
      */
-
-    this.addEvents('click', '.addBtn', () => {
+    this.addEvent('click', '.addBtn', () => {
       const { items } = this.state;
       this.setState({ items: [...items, `item${items.length + 1}`] });
     });
 
-    this.addEvents('click', '.delBtn', ({ target }) => {
+    this.addEvent('click', '.delBtn', ({ target }) => {
       const { items } = this.state;
       items.splice(target.dataset.index, 1);
       this.setState({ items });
