@@ -3,6 +3,7 @@ const path = require('path');
 
 module.exports = {
   entry: './src/index.js',
+  // entry: './src/pnj/functionComponent/app.js',
   plugins: [
     new HTMLWebpackPlugin({
       template: path.resolve(__dirname, 'index.html'),

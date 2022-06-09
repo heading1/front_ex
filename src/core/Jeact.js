@@ -34,6 +34,27 @@ function render(element, container) {
   container.appendChild(dom);
 }
 
+let nextUnitOfWork = null
+​
+function workLoop(deadline) {
+  let shouldYield = false
+  while (nextUnitOfWork && !shouldYield) {
+    nextUnitOfWork = performUnitOfWork(
+      nextUnitOfWork
+    )
+    shouldYield = deadline.timeRemaining() < 1
+  }
+   
+  // setTimeout과 같읕 개념이다. 실행시점이 setTimeout이 시간이 끝날 때라면 requestIdleCallback 은 메인스레드가 대기 상태일 때 콜백을 실행한다.
+  requestIdleCallback(workLoop);
+}
+​
+requestIdleCallback(workLoop)
+​
+function performUnitOfWork(nextUnitOfWork) {
+  // TODO
+}
+
 const Jeact = {
   createElement,
   render,
