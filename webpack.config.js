@@ -2,7 +2,7 @@ const HTMLWebpackPlugin = require('html-webpack-plugin');
 const path = require('path');
 
 module.exports = {
-  entry: './src/pnj/functionComponent/app.js',
+  entry: './src/index.js',
   plugins: [
     new HTMLWebpackPlugin({
       template: path.resolve(__dirname, 'index.html'),
@@ -24,10 +24,7 @@ module.exports = {
         loader: 'babel-loader',
         options: {
           presets: ['@babel/preset-react'],
-          plugins: [
-            '@babel/plugin-transform-template-literals',
-            '@babel/plugin-transform-arrow-functions',
-          ],
+          plugins: ['@babel/plugin-transform-template-literals', '@babel/plugin-transform-arrow-functions'],
         },
       },
     ],

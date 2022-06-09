@@ -1,3 +1,13 @@
-import App from './App.js';
+import Jeact from './core/Jeact';
 
-new App(document.getElementById('root'));
+// @jsx Jeact.createElement
+const element = (
+  <div>
+    <a>bar</a>
+    <b />
+  </div>
+);
+
+const container = document.getElementById('root');
+
+Jeact.render(element, container);
