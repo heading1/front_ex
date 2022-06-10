@@ -18,7 +18,7 @@ function createTextElement(text) {
   };
 }
 
-function render(element, container) {
+function createDom(element, container) {
   const dom = element.type === 'TEXT_ELEMENT' ? document.createTextNode('') : document.createElement(element.type);
 
   Object.keys(element.props)
@@ -31,7 +31,16 @@ function render(element, container) {
 
   element.props.children.forEach((child) => render(child, dom));
 
-  container.appendChild(dom);
+  return dom
+}
+
+function render(element, container){
+  nextUnitOfWork = {
+    dom: container,
+    props: {
+      children: [element],
+    },
+  }
 }
 
 let nextUnitOfWork = null
@@ -39,10 +48,8 @@ let nextUnitOfWork = null
 function workLoop(deadline) {
   let shouldYield = false
   while (nextUnitOfWork && !shouldYield) {
-    nextUnitOfWork = performUnitOfWork(
-      nextUnitOfWork
-    )
-    shouldYield = deadline.timeRemaining() < 1
+    nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
+    shouldYield = deadline.timeRemaining() < 1 // requestIdleCallback에서 주는 콜백으로 작업 남은 시간을 가져올 수 있다
   }
    
   // setTimeout과 같읕 개념이다. 실행시점이 setTimeout이 시간이 끝날 때라면 requestIdleCallback 은 메인스레드가 대기 상태일 때 콜백을 실행한다.
@@ -51,8 +58,50 @@ function workLoop(deadline) {
 ​
 requestIdleCallback(workLoop)
 ​
-function performUnitOfWork(nextUnitOfWork) {
-  // TODO
+function performUnitOfWork(fiber) {
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber)
+  }
+​
+  if (fiber.parent) {
+    fiber.parent.dom.appendChild(fiber.dom)
+  }
+
+  const elements = fiber.props.children
+  let index = 0
+  let prevSibling = null
+​
+  while (index < elements.length) {
+    const element = elements[index]
+​
+    const newFiber = {
+      type: element.type,
+      props: element.props,
+      parent: fiber,
+      dom: null,
+    }
+
+    if (index === 0) {
+      fiber.child = newFiber
+    } else {
+      prevSibling.sibling = newFiber
+    }
+  ​
+    prevSibling = newFiber
+    index++
+  }
+  
+  
+  if (fiber.child) {
+    return fiber.child
+  }
+  let nextFiber = fiber
+  while (nextFiber) {
+    if (nextFiber.sibling) {
+      return nextFiber.sibling
+    }
+    nextFiber = nextFiber.parent
+  }
 }
 
 const Jeact = {
