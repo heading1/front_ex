@@ -116,7 +116,7 @@ function render(element, container) {
     },
     alternate: currentRoot, // 이전 커밋 단계에서 DOM에 추가했던 fiber에 대한 링크
   };
-  deletions;
+  deletions = [];
   nextUnitOfWork = wipRoot;
 }
 
@@ -216,7 +216,7 @@ function reconcileChildren(wipFiber, elements) {
     }
     if (index === 0) {
       // 첫 번째 자식이라면
-      fiber.child = newFiber; // 현재 부모 fiber에 현재 자식 fiber 삽입
+      wipFiber.child = newFiber; // 현재 부모 fiber에 현재 자식 fiber 삽입
     } else {
       prevSibling.sibling = newFiber; // 첫 번째 자식이 아니라면 그 전의 형제가 있을 것이고 그 전 형제 fiber의 형제 fiber로 선언
     }
@@ -226,9 +226,9 @@ function reconcileChildren(wipFiber, elements) {
   }
 
   // 현재 fiber에 자식이 있다면
-  if (fiber.child) {
+  if (wipFiber.child) {
     // 현재 자식 fiber 반환 -> 다음 단위 작업 등록
-    return fiber.child;
+    return wipFiber.child;
   }
 }
 
