@@ -21,13 +21,15 @@ function createTextElement(text) {
 function createDom(fiber, container) {
   const dom = fiber.type === 'TEXT_ELEMENT' ? document.createTextNode('') : document.createElement(fiber.type);
 
-  Object.keys(fiber.props)
-    .filter((key) => key !== 'children')
-    .forEach((name) => {
-      dom[name] = fiber.props[name];
-      // fiber.props[name] 는 fiber의 props의 children이 아닌 속성들 ex) nodeValue 등등
-      // dom[name] 는 현재 fiber로 만들어진 dom의 속성, 즉, props 를 추가함 ex) a.nodeValue = '뭐시기'
-    });
+  // Object.keys(fiber.props)
+  //   .filter((key) => key !== 'children')
+  //   .forEach((name) => {
+  //     dom[name] = fiber.props[name];
+  //     // fiber.props[name] 는 fiber의 props의 children이 아닌 속성들 ex) nodeValue 등등
+  //     // dom[name] 는 현재 fiber로 만들어진 dom의 속성, 즉, props 를 추가함 ex) a.nodeValue = '뭐시기'
+  //   });
+
+  updateDom(dom, {}, fiber.props);
 
   return dom;
 }
@@ -60,6 +62,13 @@ function updateDom(dom, prevProps, nextProps) {
     .forEach((name) => {
       dom[name] = '';
     });
+  // 새로운 props중 props만 (이벤트, child 제외하고) 추가
+  Object.keys(nextProps) // 다음 속성
+    .filter(isProperty) // props(속성)인지
+    .filter(isNew(prevProps, nextProps)) // 새로운 속성인지
+    .forEach((name) => {
+      dom[name] = nextProps[name]; // 새로운 속성만 dom에 추가
+    });
 
   // 새로운 이벤트 리스너 등록
   Object.keys(nextProps)
@@ -68,14 +77,6 @@ function updateDom(dom, prevProps, nextProps) {
     .forEach((name) => {
       const eventType = name.toLowerCase().substring(2);
       dom.addEventListener(eventType, nextProps[name]);
-    });
-
-  // 새로운 props중 props만 (이벤트, child 제외하고) 추가
-  Object.keys(nextProps) // 다음 속성
-    .filter(isProperty) // props(속성)인지
-    .filter(isNew(prevProps, nextProps)) // 새로운 속성인지
-    .forEach((name) => {
-      dom[name] = nextProps[name]; // 새로운 속성만 dom에 추가
     });
 }
 
@@ -90,7 +91,13 @@ function commitWork(fiber) {
   if (!fiber) {
     return;
   }
-  const domParent = fiber.parent.dom;
+  // const domParent = fiber.parent.dom;
+  let domParentFiber = fiber.parent;
+  while (!domParentFiber.dom) {
+    domParentFiber = domParentFiber.parent;
+  }
+  const domParent = domParentFiber.dom;
+
   // fiber의 태그로 구별
   if (fiber.effectTag === 'PLACEMENT' && fiber.dom != null) {
     // 부모 fiber 노드에 자식 DOM 노드를 추가
@@ -100,11 +107,20 @@ function commitWork(fiber) {
     updateDom(fiber.dom, fiber.alternate.props, fiber.props);
   } else if (fiber.effectTag === 'DELETION') {
     // 자식을 부모 DOM에 제거
-    domParent.removeChild(fiber.dom);
+    // domParent.removeChild(fiber.dom);
+    commitDeletion(fiber, domParent);
   }
 
   commitWork(fiber.child);
   commitWork(fiber.sibling);
+}
+
+function commitDeletion(fiber, domParent) {
+  if (fiber.dom) {
+    domParent.removeChild(fiber.dom);
+  } else {
+    commitDeletion(fiber.child, domParent);
+  }
 }
 
 function render(element, container) {
@@ -139,14 +155,16 @@ function workLoop(deadline) {
 requestIdleCallback(workLoop); //workLoop 실행하며 단위작업을 수행한다.
 
 function performUnitOfWork(fiber) {
-  // fiber의 돔이 없을 때
-  if (!fiber.dom) {
-    // 새로운 노드를 생성하고 DOM에 이를 추가한다.
-    fiber.dom = createDom(fiber);
+  const isFunctionComponent = fiber.type instanceof Function;
+  if (isFunctionComponent) {
+    updateFunctionComponent(fiber);
+  } else {
+    updateHostComponent(fiber);
   }
 
-  const elements = fiber.props.children; // fiber의 자식 요소들
-  reconcileChildren(fiber, elements);
+  if (fiber.child) {
+    return fiber.child;
+  }
   // 현재 fiber가 자식 fiber가 없다면
   let nextFiber = fiber;
   while (nextFiber) {
@@ -158,6 +176,52 @@ function performUnitOfWork(fiber) {
     // 현재 fiber가 자식fiber와 형제 fiber도 없다면 부모 fiber를 다음 fiber로 등록
     nextFiber = nextFiber.parent;
   }
+}
+
+let wipFiber = null;
+let hookIndex = null;
+
+function updateFunctionComponent(fiber) {
+  wipFiber = fiber;
+  hookIndex = 0;
+  wipFiber.hooks = [];
+  const children = [fiber.type(fiber.props)];
+  reconcileChildren(fiber, children);
+}
+
+function useState(initial) {
+  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
+  const hook = {
+    state: oldHook ? oldHook.state : initial,
+    queue: [],
+  };
+
+  const actions = oldHook ? oldHook.queue : [];
+  actions.forEach((action) => {
+    hook.state = action(hook.state);
+  });
+
+  const setState = (action) => {
+    hook.queue.push(action);
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot,
+    };
+    nextUnitOfWork = wipRoot;
+    deletions = [];
+  };
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+  return [hook.state, setState];
+}
+
+function updateHostComponent(fiber) {
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber);
+  }
+  reconcileChildren(fiber, fiber.props.children);
 }
 
 // 오래된 fiber를 새로운 엘리먼트로 재조정(reconcile)
@@ -224,17 +288,12 @@ function reconcileChildren(wipFiber, elements) {
     prevSibling = newFiber; // 다음 형제 fiber를 지금 자식 fiber의 형제 fiber로 등록할 수 있게 이전 형제 fiber로 선언
     index++; // 인덱스를 증가하며 순회
   }
-
-  // 현재 fiber에 자식이 있다면
-  if (wipFiber.child) {
-    // 현재 자식 fiber 반환 -> 다음 단위 작업 등록
-    return wipFiber.child;
-  }
 }
 
 const Jeact = {
   createElement,
   render,
+  useState,
 };
 
 export default Jeact;
