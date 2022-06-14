@@ -91,8 +91,10 @@ function commitWork(fiber) {
   if (!fiber) {
     return;
   }
+  // 함수형 컴포넌트가 적용되면서 DOM 노드가 없는 fiber를 가지기 때문에 이를 구별해야한다.
   // const domParent = fiber.parent.dom;
   let domParentFiber = fiber.parent;
+  // DOM 노드의 부모를 찾으려면 DOM 노드를 가진 fiber를 찾을 때까지 fiber 트리의 상단으로 올라간다.
   while (!domParentFiber.dom) {
     domParentFiber = domParentFiber.parent;
   }
@@ -108,6 +110,7 @@ function commitWork(fiber) {
   } else if (fiber.effectTag === 'DELETION') {
     // 자식을 부모 DOM에 제거
     // domParent.removeChild(fiber.dom);
+    // 함수형 컴포넌트가 적용되면서 DOM 노드를 가진 자식을 찾을 때 까지 찾는다.
     commitDeletion(fiber, domParent);
   }
 
@@ -155,10 +158,14 @@ function workLoop(deadline) {
 requestIdleCallback(workLoop); //workLoop 실행하며 단위작업을 수행한다.
 
 function performUnitOfWork(fiber) {
+  // 함수형 컴포넌트에서 만들어진 fiber는 DOM 노드가 없고 children을 props에서 직접 가져오는 대신 함수를 실행하여 얻는다.
+  // 이를 판별하는 조건문을 만든다.
   const isFunctionComponent = fiber.type instanceof Function;
   if (isFunctionComponent) {
+    // 함수형 컴포넌트라면
     updateFunctionComponent(fiber);
   } else {
+    // 함수형 컴포넌트가 아니라면
     updateHostComponent(fiber);
   }
 
@@ -182,15 +189,20 @@ let wipFiber = null;
 let hookIndex = null;
 
 function updateFunctionComponent(fiber) {
+  // useState 내부에서 사용하기 위한 전역 변수를 초기화한다.
   wipFiber = fiber;
   hookIndex = 0;
-  wipFiber.hooks = [];
+  wipFiber.hooks = []; // hooks 배열을 추가함으로서 동일한 컴포넌트에서 여러 번 useState함수를 호출할 수 있도록 한다.
+  // 함수형 컴포넌트라면 자식 요소를 얻는다.
   const children = [fiber.type(fiber.props)];
   reconcileChildren(fiber, children);
 }
 
 function useState(initial) {
+  // 전역변수로 선언된 hookIndex를 사용하여 fiber의 alternate를 체크해 이미 존재하는 hook인지 체크한다.
+  // alternate는 이전 커밋 단계에서 DOM에 추가했던 fiber에 대한 링크이다.
   const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
+  // hook이 이미 존재하는 hook이라면 기존의 훅으로 사용
   const hook = {
     state: oldHook ? oldHook.state : initial,
     queue: [],
@@ -203,12 +215,14 @@ function useState(initial) {
 
   const setState = (action) => {
     hook.queue.push(action);
+    // 큐에 넣어주고
     wipRoot = {
       dom: currentRoot.dom,
       props: currentRoot.props,
       alternate: currentRoot,
     };
     nextUnitOfWork = wipRoot;
+    // 재렌더링하면서 state 변경
     deletions = [];
   };
 
@@ -218,6 +232,7 @@ function useState(initial) {
 }
 
 function updateHostComponent(fiber) {
+  // 함수형 컴포넌트가 아니라면 이전과 같은 일을 한다.
   if (!fiber.dom) {
     fiber.dom = createDom(fiber);
   }
