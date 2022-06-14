@@ -1,6 +1,30 @@
+let styledObj = {};
+
 function createElement(type, props, ...children) {
+  const isStyledComponent = typeof type === 'object';
+
+  if (isStyledComponent) {
+    const componentStyled = type.componentStyle;
+    const styledClassName = componentStyled.componentId;
+    styledObj[styledClassName] = componentStyled.rules[0];
+
+    const style = document.createElement('style');
+    style.type = 'text/css';
+    let styleCSS = '';
+    for (const key in styledObj) {
+      styleCSS += `.${key} {${styledObj[key]}}\n`;
+    }
+    style.innerHTML = styleCSS;
+    document.getElementsByTagName('head')[0].appendChild(style);
+    // stlyed외에 직접 클래스 추가한 경우
+    const className = props.className ? props.className + ' ' + styledClassName : styledClassName;
+    props = {
+      ...props,
+      className,
+    };
+  }
   return {
-    type,
+    type: isStyledComponent ? type.target : type,
     props: {
       ...props,
       children: children.map((child) => (typeof child === 'object' ? child : createTextElement(child))),
@@ -19,6 +43,8 @@ function createTextElement(text) {
 }
 
 function createDom(fiber, container) {
+  // console.log(fiber.type + '');
+  // console.log(fiber.type);
   const dom = fiber.type === 'TEXT_ELEMENT' ? document.createTextNode('') : document.createElement(fiber.type);
 
   // Object.keys(fiber.props)
@@ -40,7 +66,8 @@ let currentRoot = null;
 let deletions = null; // 오래된 노드 삭제하기 위한 배열
 
 const isEvent = (key) => key.startsWith('on'); // 이벤트 리스너 처리
-const isProperty = (key) => key !== 'children' && !isEvent(key);
+const isStyle = (key) => key === 'style';
+const isProperty = (key) => key !== 'children' && !isEvent(key) && !isStyle(key);
 const isNew = (prev, next) => (key) => prev[key] !== next[key];
 const isGone = (prev, next) => (key) => !(key in next);
 
@@ -55,6 +82,22 @@ function updateDom(dom, prevProps, nextProps) {
       dom.removeEventListener(eventType, prevProps[name]);
     });
 
+  const prevStyle = prevProps.style || {};
+  const nextStyle = nextProps.style || {};
+
+  // Remove old styles
+  Object.keys(prevStyle)
+    .filter(isGone(prevStyle, nextStyle))
+    .forEach((name) => {
+      dom.style[name] = '';
+    });
+
+  // Set new or changed styles
+  Object.keys(nextStyle)
+    .filter(isNew(prevStyle, nextStyle))
+    .forEach((name) => {
+      dom.style[name] = nextStyle[name];
+    });
   // 이벤트 리스너를 제외한 old props(속성) 삭제
   Object.keys(prevProps)
     .filter(isProperty)
