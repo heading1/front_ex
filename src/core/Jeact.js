@@ -129,6 +129,25 @@ function commitRoot() {
   currentRoot = wipRoot;
   wipRoot = null;
 }
+function cancelEffects(fiber) {
+  if (fiber.hooks) {
+    fiber.hooks
+      .filter((hook) => hook.tag === 'effect' && hook.cancel)
+      .forEach((effectHook) => {
+        effectHook.cancel();
+      });
+  }
+}
+
+function runEffects(fiber) {
+  if (fiber.hooks) {
+    fiber.hooks
+      .filter((hook) => hook.tag === 'effect' && hook.effect)
+      .forEach((effectHook) => {
+        effectHook.cancel = effectHook.effect();
+      });
+  }
+}
 
 function commitWork(fiber) {
   if (!fiber) {
@@ -144,16 +163,24 @@ function commitWork(fiber) {
   const domParent = domParentFiber.dom;
 
   // fiber의 태그로 구별
-  if (fiber.effectTag === 'PLACEMENT' && fiber.dom != null) {
-    // 부모 fiber 노드에 자식 DOM 노드를 추가
-    domParent.appendChild(fiber.dom);
-  } else if (fiber.effectTag === 'UPDATE' && fiber.dom != null) {
-    // 이미 존재하는 DOM 노드를 변경된 props로 갱신
-    updateDom(fiber.dom, fiber.alternate.props, fiber.props);
+  if (fiber.effectTag === 'PLACEMENT') {
+    if (fiber.dom != null) {
+      // 부모 fiber 노드에 자식 DOM 노드를 추가
+      domParent.appendChild(fiber.dom);
+    }
+    runEffects(fiber);
+  } else if (fiber.effectTag === 'UPDATE') {
+    cancelEffects(fiber);
+    if (fiber.dom != null) {
+      // 이미 존재하는 DOM 노드를 변경된 props로 갱신
+      updateDom(fiber.dom, fiber.alternate.props, fiber.props);
+    }
+    runEffects(fiber);
   } else if (fiber.effectTag === 'DELETION') {
     // 자식을 부모 DOM에 제거
     // domParent.removeChild(fiber.dom);
     // 함수형 컴포넌트가 적용되면서 DOM 노드를 가진 자식을 찾을 때 까지 찾는다.
+    cancelEffects(fiber);
     commitDeletion(fiber, domParent);
   }
 
@@ -273,6 +300,24 @@ function useState(initial) {
   hookIndex++;
   return [hook.state, setState];
 }
+const hasDepsChanged = (prevDeps, nextDeps) =>
+  !prevDeps || !nextDeps || prevDeps.length !== nextDeps.length || prevDeps.some((dep, index) => dep !== nextDeps[index]);
+
+function uesEffect(effect, deps) {
+  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
+
+  const hasChanged = hasDepsChanged(oldHook ? oldHook.deps : undefined, deps);
+
+  const hook = {
+    tag: 'effect',
+    effect: hasChanged ? effect : null,
+    cancel: hasChanged && oldHook && oldHook.cancel,
+    deps,
+  };
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+}
 
 function updateHostComponent(fiber) {
   // 함수형 컴포넌트가 아니라면 이전과 같은 일을 한다.
@@ -352,6 +397,7 @@ const Jeact = {
   createElement,
   render,
   useState,
+  uesEffect,
 };
 
 export default Jeact;

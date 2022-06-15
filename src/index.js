@@ -22,7 +22,9 @@ const CustomDiv = () => {
 function Counter() {
   const [state, setState] = Jeact.useState(1);
   const bgColor = 'green';
-
+  Jeact.uesEffect(() => {
+    console.log(state);
+  }, [state]);
   return (
     <StyledCounter bgColor={bgColor} className='test1 asdf'>
       <h1 className='test'>Count: {state}</h1>
