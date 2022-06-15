@@ -1,21 +1,22 @@
 let styledObj = {};
+const style = document.createElement('style');
+document.getElementsByTagName('head')[0].appendChild(style);
 
 function createElement(type, props, ...children) {
   const isStyledComponent = typeof type === 'object';
 
   if (isStyledComponent) {
+    console.log(type);
     const componentStyled = type.componentStyle;
     const styledClassName = componentStyled.componentId;
     styledObj[styledClassName] = componentStyled.rules[0];
 
-    const style = document.createElement('style');
     style.type = 'text/css';
     let styleCSS = '';
     for (const key in styledObj) {
       styleCSS += `.${key} {${styledObj[key]}}\n`;
     }
     style.innerHTML = styleCSS;
-    document.getElementsByTagName('head')[0].appendChild(style);
     // stlyed외에 직접 클래스 추가한 경우
     const className = props.className ? props.className + ' ' + styledClassName : styledClassName;
     props = {
@@ -23,6 +24,7 @@ function createElement(type, props, ...children) {
       className,
     };
   }
+
   return {
     type: isStyledComponent ? type.target : type,
     props: {

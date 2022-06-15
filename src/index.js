@@ -2,21 +2,25 @@ import Jeact from './core/Jeact';
 import styled from 'styled-components';
 
 const StyledCounter = styled.div`
-  background-color: beige;
+  background-color: ${({ bgColor }) => bgColor || 'beige'};
 `;
-
+// props.bgColor || 'pink'
 const StyledButton = styled.button`
-  background-color: pink;
+  background-color: ${({ bgColor }) => bgColor || 'pink'};
+  color: ${({ bgColor }) => bgColor || 'pink'};
 `;
 
 // @jsx Jeact.createElement
 function Counter() {
   const [state, setState] = Jeact.useState(1);
-  // style={{ border: 'thick double #32a1ce' }}
+  const bgColor = 'green';
+
   return (
-    <StyledCounter className='test1 asdf'>
+    <StyledCounter bgColor={bgColor} className='test1 asdf'>
       <h1 className='test'>Count: {state}</h1>
-      <StyledButton onClick={() => setState((state) => state + 1)}>버튼</StyledButton>
+      <StyledButton bgColor={bgColor} onClick={() => setState((state) => state + 1)}>
+        버튼
+      </StyledButton>
     </StyledCounter>
   );
 }
