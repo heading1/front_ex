@@ -175,6 +175,7 @@ function commitWork(fiber) {
       // 이미 존재하는 DOM 노드를 변경된 props로 갱신
       updateDom(fiber.dom, fiber.alternate.props, fiber.props);
     }
+    domParent.appendChild(fiber.dom); // appendChild() move this element after the updated element
     runEffects(fiber);
   } else if (fiber.effectTag === 'DELETION') {
     // 자식을 부모 DOM에 제거
@@ -281,7 +282,7 @@ function useState(initial) {
 
   const actions = oldHook ? oldHook.queue : [];
   actions.forEach((action) => {
-    hook.state = action(hook.state);
+    hook.state = typeof action === 'function' ? action(hook.state) : action;
   });
 
   const setState = (action) => {
