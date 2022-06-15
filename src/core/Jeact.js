@@ -1,9 +1,34 @@
+let styledObj = {};
+const style = document.createElement('style');
+document.getElementsByTagName('head')[0].appendChild(style);
+
 function createElement(type, props, ...children) {
+  const isStyledComponent = typeof type === 'object';
+
+  if (isStyledComponent) {
+    const componentStyled = type.componentStyle;
+    const styledClassName = componentStyled.componentId;
+    styledObj[styledClassName] = componentStyled.rules[0];
+
+    style.type = 'text/css';
+    let styleCSS = '';
+    for (const key in styledObj) {
+      styleCSS += `.${key} {${styledObj[key]}}\n`;
+    }
+    style.innerHTML = styleCSS;
+    // stlyed외에 직접 클래스 추가한 경우
+    const className = props.className ? props.className + ' ' + styledClassName : styledClassName;
+    props = {
+      ...props,
+      className,
+    };
+  }
+
   return {
-    type,
+    type: isStyledComponent ? type.target : type,
     props: {
       ...props,
-      children: children.map((child) => (typeof child === 'object' ? child : createTextElement(child))),
+      children: children.flat().map((child) => (typeof child === 'object' ? child : createTextElement(child))),
     },
   };
 }
@@ -19,15 +44,18 @@ function createTextElement(text) {
 }
 
 function createDom(fiber, container) {
+  // console.log(fiber.type + '');
+  // console.log(fiber.type);
   const dom = fiber.type === 'TEXT_ELEMENT' ? document.createTextNode('') : document.createElement(fiber.type);
 
-  Object.keys(fiber.props)
-    .filter((key) => key !== 'children')
-    .forEach((name) => {
-      dom[name] = fiber.props[name];
-      // fiber.props[name] 는 fiber의 props의 children이 아닌 속성들 ex) nodeValue 등등
-      // dom[name] 는 현재 fiber로 만들어진 dom의 속성, 즉, props 를 추가함 ex) a.nodeValue = '뭐시기'
-    });
+  // Object.keys(fiber.props)
+  //   .filter((key) => key !== 'children')
+  //   .forEach((name) => {
+  //     dom[name] = fiber.props[name];
+  //     // fiber.props[name] 는 fiber의 props의 children이 아닌 속성들 ex) nodeValue 등등
+  //     // dom[name] 는 현재 fiber로 만들어진 dom의 속성, 즉, props 를 추가함 ex) a.nodeValue = '뭐시기'
+  //   });
+  updateDom(dom, {}, fiber.props);
 
   return dom;
 }
@@ -38,7 +66,8 @@ let currentRoot = null;
 let deletions = null; // 오래된 노드 삭제하기 위한 배열
 
 const isEvent = (key) => key.startsWith('on'); // 이벤트 리스너 처리
-const isProperty = (key) => key !== 'children' && !isEvent(key);
+const isStyle = (key) => key === 'style';
+const isProperty = (key) => key !== 'children' && !isEvent(key) && !isStyle(key);
 const isNew = (prev, next) => (key) => prev[key] !== next[key];
 const isGone = (prev, next) => (key) => !(key in next);
 
@@ -53,12 +82,35 @@ function updateDom(dom, prevProps, nextProps) {
       dom.removeEventListener(eventType, prevProps[name]);
     });
 
+  const prevStyle = prevProps.style || {};
+  const nextStyle = nextProps.style || {};
+
+  // Remove old styles
+  Object.keys(prevStyle)
+    .filter(isGone(prevStyle, nextStyle))
+    .forEach((name) => {
+      dom.style[name] = '';
+    });
+
+  // Set new or changed styles
+  Object.keys(nextStyle)
+    .filter(isNew(prevStyle, nextStyle))
+    .forEach((name) => {
+      dom.style[name] = nextStyle[name];
+    });
   // 이벤트 리스너를 제외한 old props(속성) 삭제
   Object.keys(prevProps)
     .filter(isProperty)
     .filter(isGone(prevProps, nextProps))
     .forEach((name) => {
       dom[name] = '';
+    });
+  // 새로운 props중 props만 (이벤트, child 제외하고) 추가
+  Object.keys(nextProps) // 다음 속성
+    .filter(isProperty) // props(속성)인지
+    .filter(isNew(prevProps, nextProps)) // 새로운 속성인지
+    .forEach((name) => {
+      dom[name] = nextProps[name]; // 새로운 속성만 dom에 추가
     });
 
   // 새로운 이벤트 리스너 등록
@@ -69,14 +121,6 @@ function updateDom(dom, prevProps, nextProps) {
       const eventType = name.toLowerCase().substring(2);
       dom.addEventListener(eventType, nextProps[name]);
     });
-
-  // 새로운 props중 props만 (이벤트, child 제외하고) 추가
-  Object.keys(nextProps) // 다음 속성
-    .filter(isProperty) // props(속성)인지
-    .filter(isNew(prevProps, nextProps)) // 새로운 속성인지
-    .forEach((name) => {
-      dom[name] = nextProps[name]; // 새로운 속성만 dom에 추가
-    });
 }
 
 function commitRoot() {
@@ -85,26 +129,71 @@ function commitRoot() {
   currentRoot = wipRoot;
   wipRoot = null;
 }
+function cancelEffects(fiber) {
+  if (fiber.hooks) {
+    fiber.hooks
+      .filter((hook) => hook.tag === 'effect' && hook.cancel)
+      .forEach((effectHook) => {
+        effectHook.cancel();
+      });
+  }
+}
+
+function runEffects(fiber) {
+  if (fiber.hooks) {
+    fiber.hooks
+      .filter((hook) => hook.tag === 'effect' && hook.effect)
+      .forEach((effectHook) => {
+        effectHook.cancel = effectHook.effect();
+      });
+  }
+}
 
 function commitWork(fiber) {
   if (!fiber) {
     return;
   }
-  const domParent = fiber.parent.dom;
+  // 함수형 컴포넌트가 적용되면서 DOM 노드가 없는 fiber를 가지기 때문에 이를 구별해야한다.
+  // const domParent = fiber.parent.dom;
+  let domParentFiber = fiber.parent;
+  // DOM 노드의 부모를 찾으려면 DOM 노드를 가진 fiber를 찾을 때까지 fiber 트리의 상단으로 올라간다.
+  while (!domParentFiber.dom) {
+    domParentFiber = domParentFiber.parent;
+  }
+  const domParent = domParentFiber.dom;
+
   // fiber의 태그로 구별
-  if (fiber.effectTag === 'PLACEMENT' && fiber.dom != null) {
-    // 부모 fiber 노드에 자식 DOM 노드를 추가
-    domParent.appendChild(fiber.dom);
-  } else if (fiber.effectTag === 'UPDATE' && fiber.dom != null) {
-    // 이미 존재하는 DOM 노드를 변경된 props로 갱신
-    updateDom(fiber.dom, fiber.alternate.props, fiber.props);
+  if (fiber.effectTag === 'PLACEMENT') {
+    if (fiber.dom != null) {
+      // 부모 fiber 노드에 자식 DOM 노드를 추가
+      domParent.appendChild(fiber.dom);
+    }
+    runEffects(fiber);
+  } else if (fiber.effectTag === 'UPDATE') {
+    cancelEffects(fiber);
+    if (fiber.dom != null) {
+      // 이미 존재하는 DOM 노드를 변경된 props로 갱신
+      updateDom(fiber.dom, fiber.alternate.props, fiber.props);
+    }
+    runEffects(fiber);
   } else if (fiber.effectTag === 'DELETION') {
     // 자식을 부모 DOM에 제거
-    domParent.removeChild(fiber.dom);
+    // domParent.removeChild(fiber.dom);
+    // 함수형 컴포넌트가 적용되면서 DOM 노드를 가진 자식을 찾을 때 까지 찾는다.
+    cancelEffects(fiber);
+    commitDeletion(fiber, domParent);
   }
 
   commitWork(fiber.child);
   commitWork(fiber.sibling);
+}
+
+function commitDeletion(fiber, domParent) {
+  if (fiber.dom) {
+    domParent.removeChild(fiber.dom);
+  } else {
+    commitDeletion(fiber.child, domParent);
+  }
 }
 
 function render(element, container) {
@@ -116,7 +205,7 @@ function render(element, container) {
     },
     alternate: currentRoot, // 이전 커밋 단계에서 DOM에 추가했던 fiber에 대한 링크
   };
-  deletions;
+  deletions = [];
   nextUnitOfWork = wipRoot;
 }
 
@@ -139,14 +228,20 @@ function workLoop(deadline) {
 requestIdleCallback(workLoop); //workLoop 실행하며 단위작업을 수행한다.
 
 function performUnitOfWork(fiber) {
-  // fiber의 돔이 없을 때
-  if (!fiber.dom) {
-    // 새로운 노드를 생성하고 DOM에 이를 추가한다.
-    fiber.dom = createDom(fiber);
+  // 함수형 컴포넌트에서 만들어진 fiber는 DOM 노드가 없고 children을 props에서 직접 가져오는 대신 함수를 실행하여 얻는다.
+  // 이를 판별하는 조건문을 만든다.
+  const isFunctionComponent = fiber.type instanceof Function;
+  if (isFunctionComponent) {
+    // 함수형 컴포넌트라면
+    updateFunctionComponent(fiber);
+  } else {
+    // 함수형 컴포넌트가 아니라면
+    updateHostComponent(fiber);
   }
 
-  const elements = fiber.props.children; // fiber의 자식 요소들
-  reconcileChildren(fiber, elements);
+  if (fiber.child) {
+    return fiber.child;
+  }
   // 현재 fiber가 자식 fiber가 없다면
   let nextFiber = fiber;
   while (nextFiber) {
@@ -158,6 +253,78 @@ function performUnitOfWork(fiber) {
     // 현재 fiber가 자식fiber와 형제 fiber도 없다면 부모 fiber를 다음 fiber로 등록
     nextFiber = nextFiber.parent;
   }
+}
+
+let wipFiber = null;
+let hookIndex = null;
+
+function updateFunctionComponent(fiber) {
+  // useState 내부에서 사용하기 위한 전역 변수를 초기화한다.
+  wipFiber = fiber;
+  hookIndex = 0;
+  wipFiber.hooks = []; // hooks 배열을 추가함으로서 동일한 컴포넌트에서 여러 번 useState함수를 호출할 수 있도록 한다.
+  // 함수형 컴포넌트라면 자식 요소를 얻는다.
+  const children = [fiber.type(fiber.props)];
+  reconcileChildren(fiber, children);
+}
+
+function useState(initial) {
+  // 전역변수로 선언된 hookIndex를 사용하여 fiber의 alternate를 체크해 이미 존재하는 hook인지 체크한다.
+  // alternate는 이전 커밋 단계에서 DOM에 추가했던 fiber에 대한 링크이다.
+  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
+  // hook이 이미 존재하는 hook이라면 기존의 훅으로 사용
+  const hook = {
+    state: oldHook ? oldHook.state : initial,
+    queue: [],
+  };
+
+  const actions = oldHook ? oldHook.queue : [];
+  actions.forEach((action) => {
+    hook.state = action(hook.state);
+  });
+
+  const setState = (action) => {
+    hook.queue.push(action);
+    // 큐에 넣어주고
+    wipRoot = {
+      dom: currentRoot.dom,
+      props: currentRoot.props,
+      alternate: currentRoot,
+    };
+    nextUnitOfWork = wipRoot;
+    // 재렌더링하면서 state 변경
+    deletions = [];
+  };
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+  return [hook.state, setState];
+}
+const hasDepsChanged = (prevDeps, nextDeps) =>
+  !prevDeps || !nextDeps || prevDeps.length !== nextDeps.length || prevDeps.some((dep, index) => dep !== nextDeps[index]);
+
+function uesEffect(effect, deps) {
+  const oldHook = wipFiber.alternate && wipFiber.alternate.hooks && wipFiber.alternate.hooks[hookIndex];
+
+  const hasChanged = hasDepsChanged(oldHook ? oldHook.deps : undefined, deps);
+
+  const hook = {
+    tag: 'effect',
+    effect: hasChanged ? effect : null,
+    cancel: hasChanged && oldHook && oldHook.cancel,
+    deps,
+  };
+
+  wipFiber.hooks.push(hook);
+  hookIndex++;
+}
+
+function updateHostComponent(fiber) {
+  // 함수형 컴포넌트가 아니라면 이전과 같은 일을 한다.
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber);
+  }
+  reconcileChildren(fiber, fiber.props.children);
 }
 
 // 오래된 fiber를 새로운 엘리먼트로 재조정(reconcile)
@@ -216,7 +383,7 @@ function reconcileChildren(wipFiber, elements) {
     }
     if (index === 0) {
       // 첫 번째 자식이라면
-      fiber.child = newFiber; // 현재 부모 fiber에 현재 자식 fiber 삽입
+      wipFiber.child = newFiber; // 현재 부모 fiber에 현재 자식 fiber 삽입
     } else {
       prevSibling.sibling = newFiber; // 첫 번째 자식이 아니라면 그 전의 형제가 있을 것이고 그 전 형제 fiber의 형제 fiber로 선언
     }
@@ -224,17 +391,13 @@ function reconcileChildren(wipFiber, elements) {
     prevSibling = newFiber; // 다음 형제 fiber를 지금 자식 fiber의 형제 fiber로 등록할 수 있게 이전 형제 fiber로 선언
     index++; // 인덱스를 증가하며 순회
   }
-
-  // 현재 fiber에 자식이 있다면
-  if (fiber.child) {
-    // 현재 자식 fiber 반환 -> 다음 단위 작업 등록
-    return fiber.child;
-  }
 }
 
 const Jeact = {
   createElement,
   render,
+  useState,
+  uesEffect,
 };
 
 export default Jeact;

@@ -19,7 +19,8 @@
   },
   "homepage": "https://github.com/heading1/front_ex#readme",
   "dependencies": {
-    "serve": "^13.0.2"
+    "serve": "^13.0.2",
+    "styled-components": "^5.3.5"
   },
   "devDependencies": {
     "@babel/cli": "^7.17.10",
