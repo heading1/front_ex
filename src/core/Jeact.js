@@ -6,7 +6,6 @@ function createElement(type, props, ...children) {
   const isStyledComponent = typeof type === 'object';
 
   if (isStyledComponent) {
-    console.log(type);
     const componentStyled = type.componentStyle;
     const styledClassName = componentStyled.componentId;
     styledObj[styledClassName] = componentStyled.rules[0];
@@ -29,7 +28,7 @@ function createElement(type, props, ...children) {
     type: isStyledComponent ? type.target : type,
     props: {
       ...props,
-      children: children.map((child) => (typeof child === 'object' ? child : createTextElement(child))),
+      children: children.flat().map((child) => (typeof child === 'object' ? child : createTextElement(child))),
     },
   };
 }
@@ -56,7 +55,6 @@ function createDom(fiber, container) {
   //     // fiber.props[name] 는 fiber의 props의 children이 아닌 속성들 ex) nodeValue 등등
   //     // dom[name] 는 현재 fiber로 만들어진 dom의 속성, 즉, props 를 추가함 ex) a.nodeValue = '뭐시기'
   //   });
-
   updateDom(dom, {}, fiber.props);
 
   return dom;

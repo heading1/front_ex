@@ -10,6 +10,14 @@ const StyledButton = styled.button`
   color: ${({ bgColor }) => bgColor || 'pink'};
 `;
 
+const todos = [{ title: 'title1' }, { title: 'title2' }, { title: 'title3' }];
+const CustomDiv = () => {
+  return (
+    <div>
+      <h1>hi</h1>
+    </div>
+  );
+};
 // @jsx Jeact.createElement
 function Counter() {
   const [state, setState] = Jeact.useState(1);
@@ -21,6 +29,13 @@ function Counter() {
       <StyledButton bgColor={bgColor} onClick={() => setState((state) => state + 1)}>
         버튼
       </StyledButton>
+      <ul>
+        {todos.map((todo) => (
+          <li>
+            {todo.title} <CustomDiv />
+          </li>
+        ))}
+      </ul>
     </StyledCounter>
   );
 }
