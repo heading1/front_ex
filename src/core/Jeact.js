@@ -182,6 +182,7 @@ function commitWork(fiber) {
     // 함수형 컴포넌트가 적용되면서 DOM 노드를 가진 자식을 찾을 때 까지 찾는다.
     cancelEffects(fiber);
     commitDeletion(fiber, domParent);
+    return; // fiber가 삭제되므로 아래 fiber의 형제,자식 commitWork는 하면 안됨
   }
 
   commitWork(fiber.child);
